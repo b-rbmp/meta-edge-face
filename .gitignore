@@ -1,3 +1,14 @@
+*.jpg
+*.png
+*.json
+*.txt
+*.tsv
+*.pth 
+*.pkl
+wandb/
+processed_data/
+data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
