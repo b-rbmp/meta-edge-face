@@ -36,4 +36,5 @@ def get_model(name, **kwargs):
     else:
         raise ValueError()
 
-from .classifier import PartialFC_SingleGPU
+from .classifier import PartialFC_SingleGPU, NormalizedLinearHeadWithCombinedMargin
+from .camilenet import CamileNet

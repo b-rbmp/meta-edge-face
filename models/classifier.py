@@ -116,11 +116,14 @@ class PartialFC_SingleGPU(torch.nn.Module):
             weight = self.weight
             self.weight_index = None
 
+        device_type = local_embeddings.device.type
         # Normalize embeddings & weights
-        with torch.amp.autocast(enabled=self.fp16):
+        with torch.amp.autocast(enabled=self.fp16, device_type=device_type):
             norm_embeddings = F.normalize(local_embeddings, dim=1)
             norm_weight = F.normalize(weight, dim=1)
             logits = F.linear(norm_embeddings, norm_weight)
+
+        original_logits = logits.clone()
 
         # Clamp for numerical stability
         logits = logits.clamp(-1, 1)
@@ -140,4 +143,61 @@ class PartialFC_SingleGPU(torch.nn.Module):
             # If no valid samples, return zero
             loss = torch.tensor(0.0, device=logits.device, requires_grad=True)
 
-        return loss, logits
+        modified_logits = logits.clone()
+
+        return loss, modified_logits, original_logits # Don't use modified_logits to predict the class, it is only for loss calculation. You should compute the class using the
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+class NormalizedLinearHeadWithCombinedMargin(nn.Module):
+    """
+    Linear head that:
+      1. Normalizes both embeddings and weights.
+      2. Performs a matrix multiply to get raw cos(theta) logits.
+      3. Feeds logits + labels into CombinedMarginLoss to apply any margin manipulations.
+    """
+    def __init__(self, embedding_size, num_classes, margin_loss):
+        """
+        Args:
+            embedding_size (int): Dimension of the incoming features.
+            num_classes (int): Number of classes for classification.
+            margin_loss (CombinedMarginLoss): Your combined margin loss module.
+        """
+        super().__init__()
+        # A trainable weight matrix with shape [num_classes, embedding_size].
+        # Typically, we do NOT use bias for ArcFace/CosFace style heads.
+        self.weight = nn.Parameter(torch.FloatTensor(num_classes, embedding_size))
+        nn.init.xavier_uniform_(self.weight)
+
+        # The CombinedMarginLoss instance you provided
+        self.margin_loss = margin_loss
+
+    def forward(self, embeddings, labels=None):
+        """
+        Args:
+            embeddings: [batch_size, embedding_size]
+            labels: [batch_size]  (optional; if None, we just return raw logits)
+
+        Returns:
+            logits if labels=None, or margin-adjusted logits if labels is not None.
+            Typically, you'll pass these logits into F.cross_entropy(logits, labels).
+        """
+        # 1) Normalize embeddings
+        normalized_embeddings = F.normalize(embeddings, p=2, dim=1)  # [B, D]
+
+        # 2) Normalize the weight matrix
+        normalized_weight = F.normalize(self.weight, p=2, dim=1)     # [C, D]
+
+        # 3) Dot product to get cos(theta) = x_norm · w_norm^T
+        #    equivalent to: logits = normalized_embeddings @ normalized_weight.T
+        logits = F.linear(normalized_embeddings, normalized_weight)  # [B, C]
+        original_logits = logits.clone()
+
+        # 4) If labels are given, apply your CombinedMarginLoss to modify the logits
+        if labels is not None:
+            logits = self.margin_loss(logits, labels)
+
+        # 5) Return either raw cos(theta) or margin-modified logits
+        return logits, original_logits

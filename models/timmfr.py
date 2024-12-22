@@ -15,9 +15,7 @@ For inquiries, please contact the author at anjith.george@idiap.ch
 
 
 import timm
-import torch
 import torch.nn as nn
-import math
 
 class LoRaLin(nn.Module):
     def __init__(self, in_features, out_features, rank, bias=True):

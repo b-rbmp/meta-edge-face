@@ -29,6 +29,8 @@ class MAMLTrainingConfig:
     loss_m3: float = 0.4
     resume_from_checkpoint: bool = False
 
+    run_str: str = "train"
+
 
 
 def get_parser() -> argparse.ArgumentParser:
@@ -42,22 +44,24 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument('--fast-learning-rate', type=float, default=0.1, help='Fast (inner loop) adaptation learning rate')
     parser.add_argument('--adaptation-steps', type=int, default=5, help='Number of adaptation steps')
     parser.add_argument('--meta-batch-size', type=int, default=128, help='Number of tasks per meta-batch')
-    parser.add_argument('--iterations', type=int, default=1000, help='Number of meta-training iterations')
+    parser.add_argument('--iterations', type=int, default=10000, help='Number of meta-training iterations')
     parser.add_argument('--use-cuda', type=int, default=1, help='Use CUDA (1) or CPU (0)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
-    parser.add_argument('--number-train-tasks', type=int, default=20000, help='Number of tasks to sample for meta-training')
-    parser.add_argument('--number-valid-tasks', type=int, default=600, help='Number of tasks to sample for meta-validation')
-    parser.add_argument('--number-test-tasks', type=int, default=600, help='Number of tasks to sample for meta-testing')
-    parser.add_argument('--patience', type=int, default=50, help='Number of iterations to wait for improvement')
+    parser.add_argument('--number-train-tasks', type=int, default=-1, help='Number of tasks to sample for meta-training')
+    parser.add_argument('--number-valid-tasks', type=int, default=-1, help='Number of tasks to sample for meta-validation')
+    parser.add_argument('--number-test-tasks', type=int, default=-1, help='Number of tasks to sample for meta-testing')
+    parser.add_argument('--patience', type=int, default=200, help='Number of iterations to wait for improvement')
     parser.add_argument("--debug_mode", action=argparse.BooleanOptionalAction, default=False, help="Enable Debug Mode")
     parser.add_argument("--use_wandb", action=argparse.BooleanOptionalAction, default=False, help="Enable WandDB logging")
 
     parser.add_argument("--network", type=str, default="edgeface_xs_gamma_06", help="Network architecture to use")
     parser.add_argument("--embedding_size", type=int, default=512, help="Size of the embedding layer")
-    parser.add_argument("--loss_s", type=float, default=64.0, help="Scaling factor for the loss function")
+    parser.add_argument("--loss_s", type=float, default=5.0, help="Scaling factor for the loss function")
     parser.add_argument("--loss_m1", type=float, default=1.0, help="Margin 1 for the loss function")
     parser.add_argument("--loss_m2", type=float, default=0.0, help="Margin 2 for the loss function")
-    parser.add_argument("--loss_m3", type=float, default=0.4, help="Margin 3 for the loss function")
+    parser.add_argument("--loss_m3", type=float, default=0.0, help="Margin 3 for the loss function")
+
+    parser.add_argument("--run_str", type=str, default="run_without_script", help="Run string for the logfile")
 
     parser.add_argument("--resume_from_checkpoint", action=argparse.BooleanOptionalAction, default=False, help="Resume training from a checkpoint")
     return parser
@@ -92,5 +96,6 @@ def parse_args() -> MAMLTrainingConfig:
         loss_m1=args.loss_m1,
         loss_m2=args.loss_m2,
         loss_m3=args.loss_m3,
-        resume_from_checkpoint=args.resume_from_checkpoint
+        resume_from_checkpoint=args.resume_from_checkpoint,
+        run_str=args.run_str
     )
