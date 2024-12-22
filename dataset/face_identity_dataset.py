@@ -46,7 +46,7 @@ class FaceDetectAlign:
             self.detector = detector
         else:
             if MTCNN is not None:
-                self.detector = MTCNN()
+                self.detector = MTCNN(device="cuda" if torch.cuda.is_available() else "cpu")
             else:
                 self.detector = None  # No face detector available
 
@@ -212,6 +212,14 @@ class IdentityImageDataset(Dataset):
         # Subfolder name => label_id
         self.class_to_idx = self._find_class_indices(root_dir)
         self.samples = self._gather_samples(root_dir, self.class_to_idx, min_samples_per_identity)
+
+        bookkeeping_path = os.path.join(self.root_dir, f"bookkeeping_{min_samples_per_identity}.pkl")
+        if os.path.exists(bookkeeping_path):
+            print(f"Bookkeeping file found at {bookkeeping_path}")
+        else:
+            print(f"Bookkeeping file not found at {bookkeeping_path}. Will be generated and cached")
+
+        self._bookkeeping_path = bookkeeping_path
 
     def __len__(self) -> int:
         return len(self.samples)
