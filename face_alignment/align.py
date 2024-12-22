@@ -1,6 +1,6 @@
 from face_alignment import mtcnn
 from PIL import Image
-mtcnn_model = mtcnn.MTCNN(device='cuda:0', crop_size=(112, 112))
+mtcnn_model = mtcnn.MTCNN(device='cuda', crop_size=(112, 112))
 
 def add_padding(pil_img, top, right, bottom, left, color=(0,0,0)):
     width, height = pil_img.size

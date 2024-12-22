@@ -4,7 +4,9 @@ import sys
 import time
 import torch.nn as nn
 
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from dataset.dataset import MXFaceDataset
 
 import torch
 import numpy as np
@@ -20,18 +22,25 @@ from maml_anil.config import parse_args
 import wandb
 
 
-# Create a face detection + alignment transform
-face_detect_align = FaceDetectAlign(
-    detector=None,  # Let it auto-create MTCNN if installed
-    output_size=(112, 112),
-    box_enlarge=1.3  # Enlarge bounding box slightly
-)
+# # Create a face detection + alignment transform
+# face_detect_align = FaceDetectAlign(
+#     detector=None,  # Let it auto-create MTCNN if installed
+#     output_size=(112, 112),
+#     box_enlarge=1.3  # Enlarge bounding box slightly
+# )
 
-# Compose with other transforms, e.g. ToTensor
-transform_pipeline = transforms.Compose([
-    face_detect_align,
-    transforms.ToTensor()
-])
+# # Compose with other transforms, e.g. ToTensor
+# transform_pipeline = transforms.Compose([
+#     face_detect_align,
+#     transforms.ToTensor()
+# ])
+
+transform_pipeline = transforms.Compose(
+[transforms.ToPILImage(),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
+    ])
 
 def accuracy(predictions, targets):
     predictions = predictions.argmax(dim=1).view(targets.shape)
@@ -67,12 +76,13 @@ def fast_adapt(batch,
     valid_accuracy = accuracy(predictions, evaluation_labels)
     return valid_error, valid_accuracy
 
-def time_load_dataset(root_dir, transform_pipeline, min_samples_per_identity):
+def time_load_dataset(root_dir, transform_pipeline, min_samples_per_identity, filename="alldata"):
     time_start = time.time()
-    dataset = IdentityImageDataset(
+    dataset = MXFaceDataset(
         root_dir=root_dir,
         transform=transform_pipeline,
-        min_samples_per_identity=min_samples_per_identity
+        min_samples_per_identity=min_samples_per_identity,
+        filename=filename,
     )
     time_end = time.time()
     logging.info(f"Time to load dataset {root_dir}: {time_end - time_start:.2f}s")
@@ -166,85 +176,86 @@ def main(
 
     # Load datasets
     casiawebface_dataset = time_load_dataset(
-        root_datasets.CASIA_WEB_FACE_ROOT,
+        "/home/bernardoribeiro/Documents/GitHub/meta-edge-face/processed_data/casia",
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        filename="alldata"
     )
-    age30_dataset = time_load_dataset(
-        root_datasets.AGEDB_30_ROOT,
-        transform_pipeline,
-        2 * shots
-    )
-    bupt_dataset = time_load_dataset(
-        root_datasets.BUPT_CBFACE_ROOT,
-        transform_pipeline,
-        2 * shots
-    )
-    ca_lfw_dataset = time_load_dataset(
-        root_datasets.CA_LFW_ROOT,
-        transform_pipeline,
-        2 * shots
-    ) 
-    cfp_fp_dataset = time_load_dataset(
-        root_datasets.CFP_FP_ROOT,
-        transform_pipeline,
-        2 * shots 
-    ) 
-    cp_lfw_dataset = time_load_dataset(
-        root_datasets.CP_LFW_ROOT,
-        transform_pipeline,
-        2 * shots
-    ) 
-    ijbb_dataset = time_load_dataset(
-        root_datasets.IJBB_ROOT,
-        transform_pipeline,
-        2 * shots
-    ) 
-    ijbc_dataset = time_load_dataset(
-        root_datasets.IJBC_ROOT,
-        transform_pipeline,
-        2 * shots
-    )
-    lfw_dataset = time_load_dataset(
-        root_datasets.LFW_ROOT,
-        transform_pipeline,
-        2 * shots
-    ) 
-    ms1mv2_dataset = time_load_dataset(
-        root_datasets.MS1MV2_ROOT,
-        transform_pipeline,
-        2 * shots
-    )
-    umdfaces_dataset = time_load_dataset(
-        root_datasets.UMDFACES_ROOT,
-        transform_pipeline,
-        2 * shots
-    )
-    glint360_dataset = time_load_dataset(
-        root_datasets.GLINT360K_ROOT,
-        transform_pipeline,
-        2 * shots
-    )
+    # age30_dataset = time_load_dataset(
+    #     root_datasets.AGEDB_30_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # )
+    # bupt_dataset = time_load_dataset(
+    #     root_datasets.BUPT_CBFACE_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # )
+    # ca_lfw_dataset = time_load_dataset(
+    #     root_datasets.CA_LFW_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # ) 
+    # cfp_fp_dataset = time_load_dataset(
+    #     root_datasets.CFP_FP_ROOT,
+    #     transform_pipeline,
+    #     2 * shots 
+    # ) 
+    # cp_lfw_dataset = time_load_dataset(
+    #     root_datasets.CP_LFW_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # ) 
+    # ijbb_dataset = time_load_dataset(
+    #     root_datasets.IJBB_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # ) 
+    # ijbc_dataset = time_load_dataset(
+    #     root_datasets.IJBC_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # )
+    # lfw_dataset = time_load_dataset(
+    #     root_datasets.LFW_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # ) 
+    # ms1mv2_dataset = time_load_dataset(
+    #     root_datasets.MS1MV2_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # )
+    # umdfaces_dataset = time_load_dataset(
+    #     root_datasets.UMDFACES_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # )
+    # glint360_dataset = time_load_dataset(
+    #     root_datasets.GLINT360K_ROOT,
+    #     transform_pipeline,
+    #     2 * shots
+    # )
 
 
     # Load meta-datasets
     casiawebface_metadataset = time_load_meta_dataset(casiawebface_dataset)
-    age30_metadataset = time_load_meta_dataset(age30_dataset)
-    bupt_metadataset = time_load_meta_dataset(bupt_dataset)
-    ca_lfw_metadataset = time_load_meta_dataset(ca_lfw_dataset)
-    cfp_fp_metadataset = time_load_meta_dataset(cfp_fp_dataset)
-    cp_lfw_metadataset = time_load_meta_dataset(cp_lfw_dataset)
-    ijbb_metadataset = time_load_meta_dataset(ijbb_dataset)
-    ijbc_metadataset = time_load_meta_dataset(ijbc_dataset)
-    lfw_metadataset = time_load_meta_dataset(lfw_dataset)
-    ms1mv2_metadataset = time_load_meta_dataset(ms1mv2_dataset)
-    umdfaces_metadataset = time_load_meta_dataset(umdfaces_dataset)
-    glint360_metadataset = time_load_meta_dataset(glint360_dataset)
+    # age30_metadataset = time_load_meta_dataset(age30_dataset)
+    # bupt_metadataset = time_load_meta_dataset(bupt_dataset)
+    # ca_lfw_metadataset = time_load_meta_dataset(ca_lfw_dataset)
+    # cfp_fp_metadataset = time_load_meta_dataset(cfp_fp_dataset)
+    # cp_lfw_metadataset = time_load_meta_dataset(cp_lfw_dataset)
+    # ijbb_metadataset = time_load_meta_dataset(ijbb_dataset)
+    # ijbc_metadataset = time_load_meta_dataset(ijbc_dataset)
+    # lfw_metadataset = time_load_meta_dataset(lfw_dataset)
+    # ms1mv2_metadataset = time_load_meta_dataset(ms1mv2_dataset)
+    # umdfaces_metadataset = time_load_meta_dataset(umdfaces_dataset)
+    # glint360_metadataset = time_load_meta_dataset(glint360_dataset)
 
 
     # Create list of datasets to be used
-    train_datasets = [casiawebface_metadataset, bupt_metadataset, ms1mv2_metadataset, umdfaces_metadataset, glint360_metadataset]
-    valid_datasets = [age30_metadataset, ca_lfw_metadataset, cfp_fp_metadataset, cp_lfw_metadataset, ijbb_metadataset, ijbc_metadataset, lfw_metadataset]
+    train_datasets = [casiawebface_metadataset]
+    valid_datasets = [casiawebface_metadataset]
 
 
     start_time = time.time()
@@ -336,12 +347,27 @@ def main(
         # Meta-train & Meta-validation steps
         for _ in range(meta_batch_size):
             # Meta-training
+            time_start = time.time()
             learner = head.clone()
+            time_end = time.time()
+            logging.info(f"Time to clone learner: {time_end - time_start:.2f}s")
+
+            time_start = time.time()
             batch = train_tasks.sample()
+            time_end = time.time()
+            logging.info(f"Time to sample batch: {time_end - time_start:.2f}s")
+
+            time_start = time.time()
             evaluation_error, evaluation_accuracy = fast_adapt(
                 batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device
             )
+            time_end = time.time()
+            logging.info(f"Time to fast adapt: {time_end - time_start:.2f}s")
+
+            time_start = time.time()
             evaluation_error.backward()
+            time_end = time.time()
+            logging.info(f"Time to backpropagate: {time_end - time_start:.2f}s")
             meta_train_error += evaluation_error.item()
             meta_train_accuracy += evaluation_accuracy.item()
 
