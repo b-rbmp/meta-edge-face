@@ -18,7 +18,7 @@ from dataset import root_datasets
 from models import CamileNet
 from maml_anil.config import parse_args
 import wandb
-
+from numpy.random import choice
 
 # Create a face detection + alignment transform
 face_detect_align = FaceDetectAlign(
@@ -156,7 +156,7 @@ def main(
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    
+
     if use_cuda and torch.cuda.is_available():
         device = torch.device('cuda')
         logging.info(f"Using CUDA device: {torch.cuda.get_device_name()}")
@@ -226,7 +226,6 @@ def main(
         2 * shots
     )
 
-
     # Load meta-datasets
     casiawebface_metadataset = time_load_meta_dataset(casiawebface_dataset)
     age30_metadataset = time_load_meta_dataset(age30_dataset)
@@ -241,49 +240,53 @@ def main(
     umdfaces_metadataset = time_load_meta_dataset(umdfaces_dataset)
     glint360_metadataset = time_load_meta_dataset(glint360_dataset)
 
-
     # Create list of datasets to be used
     train_datasets = [casiawebface_metadataset, bupt_metadataset, ms1mv2_metadataset, umdfaces_metadataset, glint360_metadataset]
     valid_datasets = [age30_metadataset, ca_lfw_metadataset, cfp_fp_metadataset, cp_lfw_metadataset, ijbb_metadataset, ijbc_metadataset, lfw_metadataset]
-
-
-    start_time = time.time()
-    union_train = l2l.data.UnionMetaDataset(train_datasets)
-    union_valid = l2l.data.UnionMetaDataset(valid_datasets)
-    logging.info(f"Time to load UNION META datasets: {time.time() - start_time:.2f}s")
     
-    total_len_labels_to_indices = 0
+    train_tasksets = []
+    train_tasksets_identity_size = []
     for dataset in train_datasets:
-        total_len_labels_to_indices += len(dataset.labels_to_indices)
+        identity_size = len(dataset)
+        logging.info(f"Number of identities in {dataset}: {identity_size}")
+        train_tasksets_identity_size.append(identity_size)
+        train_taskset = l2l.data.TaskDataset(
+            dataset,
+            task_transforms=[
+                FusedNWaysKShots(dataset, n=ways, k=2 * shots),
+                LoadData(dataset),
+                RemapLabels(dataset),
+                ConsecutiveLabels(dataset),
+            ],
+            num_tasks=number_valid_tasks if not debug_mode else 50,
+        )
+        train_tasksets.append(train_taskset)
 
-    if len(union_train.labels_to_indices) == total_len_labels_to_indices:
-        logging.info('Union dataset is working properly')
-    else:
-        raise ValueError('Union dataset is not working properly')
+        logging.info(f"Loaded training taskset for {dataset}")
+    
+    valid_tasksets = []
+    valid_tasksets_identity_size = []
+    for dataset in valid_datasets:
+        identity_size = len(dataset)
+        logging.info(f"Number of identities in {dataset}: {identity_size}")
+        valid_tasksets_identity_size.append(identity_size)
 
-    train_transforms = [
-        FusedNWaysKShots(union_train, n=ways, k=2 * shots),
-        LoadData(union_train),
-        RemapLabels(union_train),
-        ConsecutiveLabels(union_train),
-    ]
-    train_tasks = l2l.data.Taskset(
-        union_train,
-        task_transforms=train_transforms,
-        num_tasks=number_train_tasks if not debug_mode else 50,
-    )
+        valid_taskset = l2l.data.TaskDataset(
+            dataset,
+            task_transforms=[
+                FusedNWaysKShots(dataset, n=ways, k=2 * shots),
+                LoadData(dataset),
+                RemapLabels(dataset),
+                ConsecutiveLabels(dataset),
+            ],
+            num_tasks=number_valid_tasks if not debug_mode else 50,
+        )
+        valid_tasksets.append(valid_taskset)
 
-    valid_transforms = [
-        FusedNWaysKShots(union_valid, n=ways, k=2 * shots),
-        LoadData(union_valid),
-        ConsecutiveLabels(union_valid),
-        RemapLabels(union_valid),
-    ]
-    valid_tasks = l2l.data.Taskset(
-        union_valid,
-        task_transforms=valid_transforms,
-        num_tasks=number_valid_tasks if not debug_mode else 50,
-    )
+        logging.info(f"Loaded validation taskset for {dataset}")
+
+    prob_train = [identity_size / sum(train_tasksets_identity_size) for identity_size in train_tasksets_identity_size]
+    prob_valid = [identity_size / sum(valid_tasksets_identity_size) for identity_size in valid_tasksets_identity_size]
 
     loss_fn = nn.CrossEntropyLoss(reduction='mean')
 
@@ -337,6 +340,8 @@ def main(
         for _ in range(meta_batch_size):
             # Meta-training
             learner = head.clone()
+            # Sample from one of the training tasksets using the weighted probability
+            train_tasks = choice(train_tasksets, p=prob_traib)
             batch = train_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
                 batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device
@@ -361,6 +366,8 @@ def main(
         meta_valid_accuracy = 0.0
         for _ in range(meta_batch_size):
             learner = head.clone()
+            # Sample from one of the validation tasksets using the weighted probability
+            valid_tasks = choice(valid_tasksets, p=prob_valid)
             batch = valid_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
                 batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device

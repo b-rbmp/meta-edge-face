@@ -279,6 +279,9 @@ def main(
         num_tasks=number_train_tasks if not debug_mode else 50,
     )
 
+    logging.info(f"Loaded training tasks")
+
+
     valid_transforms = [
         FusedNWaysKShots(union_valid, n=ways, k=2 * shots),
         LoadData(union_valid),
@@ -290,6 +293,8 @@ def main(
         task_transforms=valid_transforms,
         num_tasks=number_valid_tasks if not debug_mode else 50,
     )
+    logging.info(f"Loaded validation tasks")
+
 
     margin_loss = CombinedMarginLoss(
         loss_s,
