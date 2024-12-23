@@ -12,11 +12,13 @@ import numpy as np
 import random
 import learn2learn as l2l
 from learn2learn.data.transforms import FusedNWaysKShots, LoadData, RemapLabels, ConsecutiveLabels
-from dataset.face_identity_dataset import FaceDetectAlign, IdentityImageDataset
+from dataset.face_identity_dataset import FaceDetectAlign
 from torchvision import transforms
 
 from dataset import root_datasets
-from models import get_model, PartialFC_SingleGPU, NormalizedLinearHeadWithCombinedMargin
+from models import get_model, NormalizedLinearHeadWithCombinedMargin
+from utils import time_load_dataset, time_load_meta_dataset, time_load_folded_dataset
+
 from losses.losses import CombinedMarginLoss
 from maml_anil.config import parse_args
 import wandb
@@ -69,25 +71,6 @@ def fast_adapt(batch,
     valid_accuracy = accuracy(og_logits, evaluation_labels)
     return valid_error, valid_accuracy
 
-def time_load_dataset(root_dir, transform_pipeline, min_samples_per_identity):
-    time_start = time.time()
-    dataset = IdentityImageDataset(
-        root_dir=root_dir,
-        transform=transform_pipeline,
-        min_samples_per_identity=min_samples_per_identity
-    )
-    time_end = time.time()
-    logging.info(f"Time to load dataset {root_dir}: {time_end - time_start:.2f}s")
-    return dataset
-
-def time_load_meta_dataset(dataset):
-    time_start = time.time()
-    metadataset = l2l.data.MetaDataset(dataset)
-    time_end = time.time()
-    logging.info(f"Time to load meta-dataset {dataset}: {time_end - time_start:.2f}s")
-    return metadataset
-
-
 def main(
     ways=5,
     shots=5,
@@ -113,7 +96,7 @@ def main(
     loss_m3=0.4,
     interclass_filtering_threshold=0.0,
     resume_from_checkpoint=False,
-    run_str='run_without_script'
+    run_str='run_without_script',
 ):
     # 1) Create a session string from the current date/time
     session_time = time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -174,126 +157,139 @@ def main(
     casiawebface_dataset = time_load_dataset(
         root_datasets.CASIA_WEB_FACE_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     age30_dataset = time_load_dataset(
         root_datasets.AGEDB_30_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     bupt_dataset = time_load_dataset(
         root_datasets.BUPT_CBFACE_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     ca_lfw_dataset = time_load_dataset(
         root_datasets.CA_LFW_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     ) 
-    cfp_fp_dataset = time_load_dataset(
-        root_datasets.CFP_FP_ROOT,
-        transform_pipeline,
-        2 * shots 
-    ) 
+    # cfp_fp_dataset = time_load_dataset(
+    #     root_datasets.CFP_FP_ROOT,
+    #     transform_pipeline,
+    #     2 * shots,
+    #     logging=logging 
+    # ) # CURRENTLY BROKEN DUE TO FILESTRUCTURE HAVING TWO FOLDERS - FIX IT
     cp_lfw_dataset = time_load_dataset(
         root_datasets.CP_LFW_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     ) 
     ijbb_dataset = time_load_dataset(
         root_datasets.IJBB_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     ) 
     ijbc_dataset = time_load_dataset(
         root_datasets.IJBC_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     lfw_dataset = time_load_dataset(
         root_datasets.LFW_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     ) 
-    ms1mv2_dataset = time_load_dataset(
+    ms1mv2_datasets = time_load_folded_dataset(
         root_datasets.MS1MV2_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     umdfaces_dataset = time_load_dataset(
         root_datasets.UMDFACES_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
-    glint360_dataset = time_load_dataset(
+    glint360_datasets = time_load_folded_dataset(
         root_datasets.GLINT360K_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
-
 
     # Load meta-datasets
-    casiawebface_metadataset = time_load_meta_dataset(casiawebface_dataset)
-    age30_metadataset = time_load_meta_dataset(age30_dataset)
-    bupt_metadataset = time_load_meta_dataset(bupt_dataset)
-    ca_lfw_metadataset = time_load_meta_dataset(ca_lfw_dataset)
-    cfp_fp_metadataset = time_load_meta_dataset(cfp_fp_dataset)
-    cp_lfw_metadataset = time_load_meta_dataset(cp_lfw_dataset)
-    ijbb_metadataset = time_load_meta_dataset(ijbb_dataset)
-    ijbc_metadataset = time_load_meta_dataset(ijbc_dataset)
-    lfw_metadataset = time_load_meta_dataset(lfw_dataset)
-    ms1mv2_metadataset = time_load_meta_dataset(ms1mv2_dataset)
-    umdfaces_metadataset = time_load_meta_dataset(umdfaces_dataset)
-    glint360_metadataset = time_load_meta_dataset(glint360_dataset)
-
+    casiawebface_metadataset = time_load_meta_dataset(casiawebface_dataset, logging=logging)
+    age30_metadataset = time_load_meta_dataset(age30_dataset, logging=logging)
+    bupt_metadataset = time_load_meta_dataset(bupt_dataset, logging=logging)
+    ca_lfw_metadataset = time_load_meta_dataset(ca_lfw_dataset, logging=logging)
+    #cfp_fp_metadataset = time_load_meta_dataset(cfp_fp_dataset, logging=logging)  # CURRENTLY BROKEN DUE TO FILESTRUCTURE HAVING TWO FOLDERS - FIX IT
+    cp_lfw_metadataset = time_load_meta_dataset(cp_lfw_dataset, logging=logging)
+    ijbb_metadataset = time_load_meta_dataset(ijbb_dataset, logging=logging)
+    ijbc_metadataset = time_load_meta_dataset(ijbc_dataset, logging=logging)
+    lfw_metadataset = time_load_meta_dataset(lfw_dataset, logging=logging)
+    ms1mv2_metadatasets = [time_load_meta_dataset(ms1mv2_dataset, logging=logging) for ms1mv2_dataset in ms1mv2_datasets]
+    umdfaces_metadataset = time_load_meta_dataset(umdfaces_dataset, logging=logging)
+    glint360_metadatasets = [time_load_meta_dataset(glint360_dataset, logging=logging) for glint360_dataset in glint360_datasets]
 
     # Create list of datasets to be used
-    train_datasets = [casiawebface_metadataset, bupt_metadataset, ms1mv2_metadataset, umdfaces_metadataset, glint360_metadataset]
-    valid_datasets = [age30_metadataset, ca_lfw_metadataset, cfp_fp_metadataset, cp_lfw_metadataset, ijbb_metadataset, ijbc_metadataset, lfw_metadataset]
-
-
-    start_time = time.time()
-    union_train = l2l.data.UnionMetaDataset(train_datasets)
-    union_valid = l2l.data.UnionMetaDataset(valid_datasets)
-    logging.info(f"Time to load UNION META datasets: {time.time() - start_time:.2f}s")
+    train_datasets = [casiawebface_metadataset, bupt_metadataset, umdfaces_metadataset]
+    train_datasets.extend(ms1mv2_metadatasets)
+    train_datasets.extend(glint360_metadatasets)
+    valid_datasets = [age30_metadataset, ca_lfw_metadataset, cp_lfw_metadataset, ijbb_metadataset, ijbc_metadataset, lfw_metadataset] # Missing CFP-FP due to broken dataset
     
-    total_len_labels_to_indices = 0
+    train_tasksets = []
+    train_tasksets_identity_size = []
     for dataset in train_datasets:
-        total_len_labels_to_indices += len(dataset.labels_to_indices)
+        identity_size = len(dataset)
+        logging.info(f"Number of samples in {dataset}: {identity_size}")
+        train_tasksets_identity_size.append(identity_size)
+        train_taskset = l2l.data.TaskDataset(
+            dataset,
+            task_transforms=[
+                FusedNWaysKShots(dataset, n=ways, k=2 * shots),
+                LoadData(dataset),
+                RemapLabels(dataset),
+                ConsecutiveLabels(dataset),
+            ],
+            num_tasks=number_valid_tasks if not debug_mode else 50,
+        )
+        train_tasksets.append(train_taskset)
 
-    if len(union_train.labels_to_indices) == total_len_labels_to_indices:
-        logging.info('Union dataset is working properly')
-    else:
-        raise ValueError('Union dataset is not working properly')
+        logging.info(f"Loaded training taskset for {dataset}")
+    
+    valid_tasksets = []
+    valid_tasksets_identity_size = []
+    for dataset in valid_datasets:
+        identity_size = len(dataset)
+        logging.info(f"Number of identities in {dataset}: {identity_size}")
+        valid_tasksets_identity_size.append(identity_size)
 
-    train_transforms = [
-        FusedNWaysKShots(union_train, n=ways, k=2 * shots),
-        LoadData(union_train),
-        RemapLabels(union_train),
-        ConsecutiveLabels(union_train),
-    ]
-    train_tasks = l2l.data.Taskset(
-        union_train,
-        task_transforms=train_transforms,
-        num_tasks=number_train_tasks if not debug_mode else 50,
-    )
+        valid_taskset = l2l.data.TaskDataset(
+            dataset,
+            task_transforms=[
+                FusedNWaysKShots(dataset, n=ways, k=2 * shots),
+                LoadData(dataset),
+                RemapLabels(dataset),
+                ConsecutiveLabels(dataset),
+            ],
+            num_tasks=number_valid_tasks if not debug_mode else 50,
+        )
+        valid_tasksets.append(valid_taskset)
 
-    logging.info(f"Loaded training tasks")
+        logging.info(f"Loaded validation taskset for {dataset}")
 
-
-    valid_transforms = [
-        FusedNWaysKShots(union_valid, n=ways, k=2 * shots),
-        LoadData(union_valid),
-        ConsecutiveLabels(union_valid),
-        RemapLabels(union_valid),
-    ]
-    valid_tasks = l2l.data.Taskset(
-        union_valid,
-        task_transforms=valid_transforms,
-        num_tasks=number_valid_tasks if not debug_mode else 50,
-    )
-    logging.info(f"Loaded validation tasks")
+    prob_train = [identity_size / sum(train_tasksets_identity_size) for identity_size in train_tasksets_identity_size]
+    prob_valid = [identity_size / sum(valid_tasksets_identity_size) for identity_size in valid_tasksets_identity_size]
 
 
     margin_loss = CombinedMarginLoss(
@@ -370,6 +366,8 @@ def main(
         for _ in range(meta_batch_size):
             # Meta-training
             learner = head.clone()
+            # Sample from one of the training tasksets 
+            train_tasks = random.choices(train_tasksets, weights=prob_train, k=1)[0]
             batch = train_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
                 batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device
@@ -395,6 +393,8 @@ def main(
         meta_valid_accuracy = 0.0
         for _ in range(meta_batch_size):
             learner = head.clone()
+            # Sample from one of the validation tasksets using the weighted probability
+            valid_tasks = random.choices(valid_tasksets, weights=prob_valid, k=1)[0]
             batch = valid_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
                 batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device

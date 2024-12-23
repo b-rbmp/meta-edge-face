@@ -11,14 +11,14 @@ import numpy as np
 import random
 import learn2learn as l2l
 from learn2learn.data.transforms import FusedNWaysKShots, LoadData, RemapLabels, ConsecutiveLabels
-from dataset.face_identity_dataset import FaceDetectAlign, IdentityImageDataset
+from dataset.face_identity_dataset import FaceDetectAlign
 from torchvision import transforms
 
 from dataset import root_datasets
 from models import CamileNet
+from utils import time_load_dataset, time_load_meta_dataset, time_load_folded_dataset
 from maml_anil.config import parse_args
 import wandb
-from numpy.random import choice
 
 # Create a face detection + alignment transform
 face_detect_align = FaceDetectAlign(
@@ -67,23 +67,6 @@ def fast_adapt(batch,
     valid_accuracy = accuracy(predictions, evaluation_labels)
     return valid_error, valid_accuracy
 
-def time_load_dataset(root_dir, transform_pipeline, min_samples_per_identity):
-    time_start = time.time()
-    dataset = IdentityImageDataset(
-        root_dir=root_dir,
-        transform=transform_pipeline,
-        min_samples_per_identity=min_samples_per_identity
-    )
-    time_end = time.time()
-    logging.info(f"Time to load dataset {root_dir}: {time_end - time_start:.2f}s")
-    return dataset
-
-def time_load_meta_dataset(dataset):
-    time_start = time.time()
-    metadataset = l2l.data.MetaDataset(dataset)
-    time_end = time.time()
-    logging.info(f"Time to load meta-dataset {dataset}: {time_end - time_start:.2f}s")
-    return metadataset
 
 
 def main(
@@ -93,6 +76,7 @@ def main(
     fast_learning_rate=0.1,
     adaptation_steps=5,
     meta_batch_size=32,
+    max_batch_size=None,
     iterations=1000,
     use_cuda=1,
     seed=42,
@@ -111,7 +95,7 @@ def main(
     loss_m3=0.4,
     interclass_filtering_threshold=0.0,
     resume_from_checkpoint=False,
-    run_str='run_without_script'
+    run_str='run_without_script',
 ):
     # 1) Create a session string from the current date/time
     session_time = time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -168,87 +152,101 @@ def main(
     casiawebface_dataset = time_load_dataset(
         root_datasets.CASIA_WEB_FACE_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     age30_dataset = time_load_dataset(
         root_datasets.AGEDB_30_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     bupt_dataset = time_load_dataset(
         root_datasets.BUPT_CBFACE_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     ca_lfw_dataset = time_load_dataset(
         root_datasets.CA_LFW_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     ) 
-    cfp_fp_dataset = time_load_dataset(
-        root_datasets.CFP_FP_ROOT,
-        transform_pipeline,
-        2 * shots 
-    ) 
+    # cfp_fp_dataset = time_load_dataset(
+    #     root_datasets.CFP_FP_ROOT,
+    #     transform_pipeline,
+    #     2 * shots,
+    #     logging=logging 
+    # ) # CURRENTLY BROKEN DUE TO FILESTRUCTURE HAVING TWO FOLDERS - FIX IT
     cp_lfw_dataset = time_load_dataset(
         root_datasets.CP_LFW_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     ) 
     ijbb_dataset = time_load_dataset(
         root_datasets.IJBB_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     ) 
     ijbc_dataset = time_load_dataset(
         root_datasets.IJBC_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     lfw_dataset = time_load_dataset(
         root_datasets.LFW_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     ) 
-    ms1mv2_dataset = time_load_dataset(
+    ms1mv2_datasets = time_load_folded_dataset(
         root_datasets.MS1MV2_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
     umdfaces_dataset = time_load_dataset(
         root_datasets.UMDFACES_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
-    glint360_dataset = time_load_dataset(
+    glint360_datasets = time_load_folded_dataset(
         root_datasets.GLINT360K_ROOT,
         transform_pipeline,
-        2 * shots
+        2 * shots,
+        logging=logging
     )
 
     # Load meta-datasets
-    casiawebface_metadataset = time_load_meta_dataset(casiawebface_dataset)
-    age30_metadataset = time_load_meta_dataset(age30_dataset)
-    bupt_metadataset = time_load_meta_dataset(bupt_dataset)
-    ca_lfw_metadataset = time_load_meta_dataset(ca_lfw_dataset)
-    cfp_fp_metadataset = time_load_meta_dataset(cfp_fp_dataset)
-    cp_lfw_metadataset = time_load_meta_dataset(cp_lfw_dataset)
-    ijbb_metadataset = time_load_meta_dataset(ijbb_dataset)
-    ijbc_metadataset = time_load_meta_dataset(ijbc_dataset)
-    lfw_metadataset = time_load_meta_dataset(lfw_dataset)
-    ms1mv2_metadataset = time_load_meta_dataset(ms1mv2_dataset)
-    umdfaces_metadataset = time_load_meta_dataset(umdfaces_dataset)
-    glint360_metadataset = time_load_meta_dataset(glint360_dataset)
+    casiawebface_metadataset = time_load_meta_dataset(casiawebface_dataset, logging=logging)
+    age30_metadataset = time_load_meta_dataset(age30_dataset, logging=logging)
+    bupt_metadataset = time_load_meta_dataset(bupt_dataset, logging=logging)
+    ca_lfw_metadataset = time_load_meta_dataset(ca_lfw_dataset, logging=logging)
+    #cfp_fp_metadataset = time_load_meta_dataset(cfp_fp_dataset, logging=logging)  # CURRENTLY BROKEN DUE TO FILESTRUCTURE HAVING TWO FOLDERS - FIX IT
+    cp_lfw_metadataset = time_load_meta_dataset(cp_lfw_dataset, logging=logging)
+    ijbb_metadataset = time_load_meta_dataset(ijbb_dataset, logging=logging)
+    ijbc_metadataset = time_load_meta_dataset(ijbc_dataset, logging=logging)
+    lfw_metadataset = time_load_meta_dataset(lfw_dataset, logging=logging)
+    ms1mv2_metadatasets = [time_load_meta_dataset(ms1mv2_dataset, logging=logging) for ms1mv2_dataset in ms1mv2_datasets]
+    umdfaces_metadataset = time_load_meta_dataset(umdfaces_dataset, logging=logging)
+    glint360_metadatasets = [time_load_meta_dataset(glint360_dataset, logging=logging) for glint360_dataset in glint360_datasets]
 
     # Create list of datasets to be used
-    train_datasets = [casiawebface_metadataset, bupt_metadataset, ms1mv2_metadataset, umdfaces_metadataset, glint360_metadataset]
-    valid_datasets = [age30_metadataset, ca_lfw_metadataset, cfp_fp_metadataset, cp_lfw_metadataset, ijbb_metadataset, ijbc_metadataset, lfw_metadataset]
+    train_datasets = [casiawebface_metadataset, bupt_metadataset, umdfaces_metadataset]
+    train_datasets.extend(ms1mv2_metadatasets)
+    train_datasets.extend(glint360_metadatasets)
+    valid_datasets = [age30_metadataset, ca_lfw_metadataset, cp_lfw_metadataset, ijbb_metadataset, ijbc_metadataset, lfw_metadataset] # Missing CFP-FP due to broken dataset
     
     train_tasksets = []
     train_tasksets_identity_size = []
     for dataset in train_datasets:
         identity_size = len(dataset)
-        logging.info(f"Number of identities in {dataset}: {identity_size}")
+        logging.info(f"Number of samples in {dataset}: {identity_size}")
         train_tasksets_identity_size.append(identity_size)
         train_taskset = l2l.data.TaskDataset(
             dataset,
@@ -340,8 +338,8 @@ def main(
         for _ in range(meta_batch_size):
             # Meta-training
             learner = head.clone()
-            # Sample from one of the training tasksets using the weighted probability
-            train_tasks = choice(train_tasksets, p=prob_traib)
+            # Sample from one of the training tasksets 
+            train_tasks = random.choices(train_tasksets, weights=prob_train, k=1)[0]
             batch = train_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
                 batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device
@@ -367,7 +365,7 @@ def main(
         for _ in range(meta_batch_size):
             learner = head.clone()
             # Sample from one of the validation tasksets using the weighted probability
-            valid_tasks = choice(valid_tasksets, p=prob_valid)
+            valid_tasks = random.choices(valid_tasksets, weights=prob_valid, k=1)[0]
             batch = valid_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
                 batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device
@@ -424,6 +422,7 @@ if __name__ == '__main__':
         fast_learning_rate=options.fast_learning_rate,
         adaptation_steps=options.adaptation_steps,
         meta_batch_size=options.meta_batch_size,
+        max_batch_size=options.max_batch_size,
         iterations=options.iterations,
         use_cuda=options.use_cuda,
         seed=options.seed,

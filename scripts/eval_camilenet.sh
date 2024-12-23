@@ -11,4 +11,4 @@
 export WANDB_API_KEY=APIDATAKEY
 
 # Run your Python training script
-python maml_anil/eval.py --network camilenet --embedding-size 64
+python maml_anil/eval.py --network camilenet --embedding_size 64 --threshold_start 10 --threshold_end 5000 --threshold_step 1

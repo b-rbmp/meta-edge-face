@@ -1,5 +1,6 @@
 import argparse
 from dataclasses import dataclass
+from typing import Union
 
 
 @dataclass
@@ -10,6 +11,7 @@ class MAMLTrainingConfig:
     fast_learning_rate: float
     adaptation_steps: int
     meta_batch_size: int
+    max_batch_size: int | None
     iterations: int
     use_cuda: int
     seed: int
@@ -44,6 +46,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument('--fast-learning-rate', type=float, default=0.1, help='Fast (inner loop) adaptation learning rate')
     parser.add_argument('--adaptation-steps', type=int, default=5, help='Number of adaptation steps')
     parser.add_argument('--meta-batch-size', type=int, default=128, help='Number of tasks per meta-batch')
+    parser.add_argument('--max-batch-size', type=Union[int, None], default=None, help='Maximum batch size to be passed through the NN - Adjust if GPU memory insufficient')
     parser.add_argument('--iterations', type=int, default=10000, help='Number of meta-training iterations')
     parser.add_argument('--use-cuda', type=int, default=1, help='Use CUDA (1) or CPU (0)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
@@ -81,6 +84,7 @@ def parse_args() -> MAMLTrainingConfig:
         fast_learning_rate=args.fast_learning_rate,
         adaptation_steps=args.adaptation_steps,
         meta_batch_size=args.meta_batch_size,
+        max_batch_size=args.max_batch_size,
         iterations=args.iterations,
         use_cuda=args.use_cuda,
         seed=args.seed,
