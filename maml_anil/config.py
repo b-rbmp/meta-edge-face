@@ -46,7 +46,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument('--fast-learning-rate', type=float, default=0.1, help='Fast (inner loop) adaptation learning rate')
     parser.add_argument('--adaptation-steps', type=int, default=5, help='Number of adaptation steps')
     parser.add_argument('--meta-batch-size', type=int, default=128, help='Number of tasks per meta-batch')
-    parser.add_argument('--max-batch-size', type=Union[int, None], default=None, help='Maximum batch size to be passed through the NN - Adjust if GPU memory insufficient')
+    parser.add_argument('--max-batch-size', type=int, default=None, help='Maximum batch size to be passed through the NN - Adjust if GPU memory insufficient')
     parser.add_argument('--iterations', type=int, default=10000, help='Number of meta-training iterations')
     parser.add_argument('--use-cuda', type=int, default=1, help='Use CUDA (1) or CPU (0)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')

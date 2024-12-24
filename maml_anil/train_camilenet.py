@@ -37,15 +37,19 @@ def accuracy(predictions, targets):
     predictions = predictions.argmax(dim=1).view(targets.shape)
     return (predictions == targets).sum().float() / targets.size(0)
 
-def fast_adapt(batch,
-               learner,
-               feature_extractor,
-               loss_fn,
-               adaptation_steps,
-               shots,
-               ways,
-               device=None,
-               max_batch_size=None):
+def fast_adapt(
+    batch,
+    learner,
+    feature_extractor,
+    loss_fn,
+    adaptation_steps,
+    shots,
+    ways,
+    device=None,
+    max_batch_size=None,
+    allow_nograd=None,
+):
+
     data, labels = batch
     data, labels = data.to(device), labels.to(device)
     # If max batch size is not None, separate the data into batches pass through the feature extractor in a for loop and then recombine
@@ -64,16 +68,31 @@ def fast_adapt(batch,
     evaluation_indices = torch.from_numpy(~adaptation_indices)
     adaptation_indices = torch.from_numpy(adaptation_indices)
 
-    adaptation_data, adaptation_labels = data[adaptation_indices], labels[adaptation_indices]
-    evaluation_data, evaluation_labels = data[evaluation_indices], labels[evaluation_indices]
+    adaptation_data, adaptation_labels = (
+        data[adaptation_indices],
+        labels[adaptation_indices],
+    )
+    evaluation_data, evaluation_labels = (
+        data[evaluation_indices],
+        labels[evaluation_indices],
+    )
 
     for _ in range(adaptation_steps):
-        train_error = loss_fn(learner(adaptation_data), adaptation_labels)
-        learner.adapt(train_error)
+        logits = learner(adaptation_data)
+        train_error = loss_fn(logits, adaptation_labels)
+        learner.adapt(train_error, allow_nograd=allow_nograd)
 
-    predictions = learner(evaluation_data)
-    valid_error = loss_fn(predictions, evaluation_labels)
-    valid_accuracy = accuracy(predictions, evaluation_labels)
+    if allow_nograd is None:
+        logits = learner(evaluation_data)
+        valid_error = loss_fn(logits, evaluation_labels)
+        valid_accuracy = accuracy(logits, evaluation_labels)
+
+    if allow_nograd:
+        with torch.no_grad():
+            logits = learner(evaluation_data)
+            valid_error = loss_fn(logits, evaluation_labels)
+            valid_accuracy = accuracy(logits, evaluation_labels)
+
     return valid_error, valid_accuracy
 
 
@@ -372,6 +391,9 @@ def main(
         optimizer.step()
 
         # Evaluate on Meta-Test tasks for early stopping
+        optimizer.zero_grad()
+        # Free GPU memory
+        torch.cuda.empty_cache()
         meta_valid_error = 0.0
         meta_valid_accuracy = 0.0
         for _ in range(meta_batch_size):
@@ -380,10 +402,25 @@ def main(
             valid_tasks = random.choices(valid_tasksets, weights=prob_valid, k=1)[0]
             batch = valid_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
-                batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device
+                batch,
+                learner,
+                feature_extractor,
+                loss_fn,
+                adaptation_steps,
+                shots,
+                ways,
+                device,
+                max_batch_size,
+                allow_nograd=True,
             )
             meta_valid_error += evaluation_error.item()
             meta_valid_accuracy += evaluation_accuracy.item()
+
+            # Instead of backpropagating, we don't need to store the gradients
+            # evaluation_error.backward()
+            # Free the gradients
+            optimizer.zero_grad()
+            torch.cuda.empty_cache()
 
         meta_valid_error /= meta_batch_size
         meta_valid_accuracy /= meta_batch_size
