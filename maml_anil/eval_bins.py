@@ -334,7 +334,7 @@ def load_bin(path, image_size):
                 img = mx.ndarray.flip(data=img, axis=2)
             data_list[flip][idx][:] = torch.from_numpy(img.asnumpy())
 
-    print(data_list[0].shape)
+    #print(data_list[0].shape)
     return data_list, issame_list
 
 def evaluate_bin_dataset(

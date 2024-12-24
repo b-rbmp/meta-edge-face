@@ -44,10 +44,19 @@ def fast_adapt(batch,
                adaptation_steps,
                shots,
                ways,
-               device=None):
+               device=None,
+               max_batch_size=None):
     data, labels = batch
     data, labels = data.to(device), labels.to(device)
-    data = feature_extractor(data)
+    # If max batch size is not None, separate the data into batches pass through the feature extractor in a for loop and then recombine
+    if max_batch_size is not None:
+        data = data.view(-1, max_batch_size, *data.shape[1:])
+        labels = labels.view(-1, max_batch_size)
+        data = [feature_extractor(data_batch) for data_batch in data]
+        data = torch.cat(data, dim=0)
+        labels = labels.view(-1)
+    else:
+        data = feature_extractor(data)
 
     # Split into adaptation/evaluation sets
     adaptation_indices = np.zeros(data.size(0), dtype=bool)
@@ -110,15 +119,12 @@ def main(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'
     )    
-    if use_wandb:
-        wandb.init(
-            project="edgeface-maml-anil",
-            entity="benchmark_bros",
-            config={
+    config = {
                 "meta_learning_rate": meta_learning_rate,
                 "fast_learning_rate": fast_learning_rate,
                 "adaptation_steps": adaptation_steps,
                 "meta_batch_size": meta_batch_size,
+                "max_batch_size": max_batch_size,
                 "iterations": iterations,
                 "number_train_tasks": number_train_tasks,
                 "number_valid_tasks": number_valid_tasks,
@@ -133,7 +139,13 @@ def main(
                 "loss_m3": loss_m3,
                 "interclass_filtering_threshold": interclass_filtering_threshold,
                 "resume_from_checkpoint": resume_from_checkpoint
-            },
+    }
+    logging.info(f"Configuration: {config}")   
+    if use_wandb:
+        wandb.init(
+            project="edgeface-maml-anil",
+            entity="benchmark_bros",
+            config=config,
         )
 
     use_cuda = bool(use_cuda)
@@ -342,7 +354,7 @@ def main(
             train_tasks = random.choices(train_tasksets, weights=prob_train, k=1)[0]
             batch = train_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
-                batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device
+                batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device, max_batch_size
             )
             evaluation_error.backward()
             meta_train_error += evaluation_error.item()
