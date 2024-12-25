@@ -38,3 +38,4 @@ def get_model(name, **kwargs):
 
 from .classifier import PartialFC_SingleGPU, NormalizedLinearHeadWithCombinedMargin
 from .camilenet import CamileNet
+from .camilenet130k import CamileNet130k

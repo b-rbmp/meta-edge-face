@@ -4,6 +4,7 @@ import sys
 import time
 from torch.nn import functional as F
 
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 import torch
@@ -16,7 +17,7 @@ from torchvision import transforms
 from utils.utils import time_load_dataset, time_load_meta_dataset, time_load_folded_dataset
 
 from dataset import root_datasets
-from models import CamileNet
+from models import CamileNet, CamileNet130k, get_model
 from config import parse_args
 import wandb
 
@@ -377,15 +378,33 @@ def main(
     ]
 
     if network == "camilenet":
+        logging.info("Using CamileNet model")
         model = CamileNet(
             input_channels=3,
             hidden_size=64,
             embedding_size=embedding_size,
             output_size=ways
         )
+        feature_extractor = model.features
+
+    elif network == "camilenet130k":
+        logging.info("Using CamileNet130k model")
+        model = CamileNet130k(
+            input_channels=3,
+            hidden_size=64,
+            embedding_size=embedding_size,
+            output_size=ways
+        )
+        feature_extractor = model.features
+
+    elif network == "edgeface_xs_gamma_06":
+        logging.info("Using EdgeFace XS model")
+        feature_extractor = get_model(
+            network, dropout=0.0, fp16=False, num_features=embedding_size
+        )
     else:
         raise ValueError(f"Unknown network: {network}")
-    feature_extractor = model.features
+    
     feature_extractor.to(device)
 
     all_parameters = list(feature_extractor.parameters())

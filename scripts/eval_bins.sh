@@ -11,4 +11,4 @@
 export WANDB_API_KEY=APIDATAKEY
 
 # Run your Python training script
-python eval/eval_bins.py --network camilenet --embedding_size 64 --threshold_start 10 --threshold_end 5000 --threshold_step 1
+python eval/eval_bins.py --network camilenet --embedding_size 64 --threshold_start 0.10 --threshold_end 20 --threshold_step 0.01

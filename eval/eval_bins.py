@@ -36,8 +36,7 @@ from collections import defaultdict
 from dataset import root_datasets
 from models import get_model
 from maml_anil.config import parse_args
-from models import CamileNet
-
+from models import CamileNet, CamileNet130k
 import sklearn
 from sklearn.model_selection import KFold
 from sklearn.decomposition import PCA
@@ -529,6 +528,17 @@ def main(
             output_size=10,  # Doesn't matter, will get only feature extractor
         )
         feature_extractor = model.features
+    elif network == "camilenet130k":
+        logging.info("Using CamileNet130k model")
+        model = CamileNet130k(
+            input_channels=3,
+            hidden_size=embedding_size,
+            embedding_size=embedding_size,
+            output_size=10,  # Doesn't matter, will get only feature extractor
+        )
+        feature_extractor = model.features
+    else:
+        raise ValueError(f"Unknown network: {network}")
 
     checkpoint = torch.load(checkpoint_str, map_location=device)
     feature_extractor.load_state_dict(checkpoint["feature_extractor"])

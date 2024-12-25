@@ -152,7 +152,7 @@ class ProtoNet(nn.Module):
         print("Model loaded from", path)
 
 
-class CamileNet(MAMLModel):
+class CamileNet130k(MAMLModel):
     def __init__(self, input_channels=3, hidden_size=64, embedding_size=64, output_size=5):
         features = ProtoNet(input_channels, hidden_size, embedding_size)
-        super(CamileNet, self).__init__(features, embedding_size, output_size)
+        super(CamileNet130k, self).__init__(features, embedding_size, output_size)
