@@ -12,6 +12,7 @@ try:
 except ImportError:
     MTCNN = None
 
+
 # ------------------------------------------------------------------------------------
 # Face detection + alignment transform
 # ------------------------------------------------------------------------------------
@@ -29,7 +30,7 @@ class FaceDetectAlign:
         detector=None,
         output_size=(112, 112),
         fallback_transform: Optional[Callable] = None,
-        box_enlarge: float = 1.2
+        box_enlarge: float = 1.2,
     ):
         """
         Args:
@@ -46,7 +47,9 @@ class FaceDetectAlign:
             self.detector = detector
         else:
             if MTCNN is not None:
-                self.detector = MTCNN(device="cuda" if torch.cuda.is_available() else "cpu")
+                self.detector = MTCNN(
+                    device="cuda" if torch.cuda.is_available() else "cpu"
+                )
             else:
                 self.detector = None  # No face detector available
 
@@ -55,14 +58,17 @@ class FaceDetectAlign:
             self.fallback_transform = fallback_transform
         else:
             from torchvision import transforms
-            self.fallback_transform = transforms.Compose([
-                transforms.CenterCrop(min(self.output_size)),
-                transforms.Resize(self.output_size),
-            ])
+
+            self.fallback_transform = transforms.Compose(
+                [
+                    transforms.CenterCrop(min(self.output_size)),
+                    transforms.Resize(self.output_size),
+                ]
+            )
 
     def __call__(self, img: Image.Image) -> Image.Image:
         """
-        Applies face detection + alignment to the PIL image. 
+        Applies face detection + alignment to the PIL image.
         Returns a cropped & aligned face of size self.output_size.
         Falls back to a center-crop if detection fails or no detector is present.
         """
@@ -84,9 +90,9 @@ class FaceDetectAlign:
             return self.fallback_transform(img)
 
         # Use the first face detected or pick the largest bounding box
-        face = max(results, key=lambda x: x['box'][2] * x['box'][3])  # largest area
-        box = face.get('box', None)
-        keypoints = face.get('keypoints', None)
+        face = max(results, key=lambda x: x["box"][2] * x["box"][3])  # largest area
+        box = face.get("box", None)
+        keypoints = face.get("keypoints", None)
         if not box or not keypoints:
             # Invalid detection result
             return self.fallback_transform(img)
@@ -94,12 +100,12 @@ class FaceDetectAlign:
         # Extract bounding box
         x, y, w, h = box
         # Possibly enlarge the bounding box
-        cx, cy = x + w/2, y + h/2
+        cx, cy = x + w / 2, y + h / 2
         w2, h2 = w * self.box_enlarge, h * self.box_enlarge
-        x = int(cx - w2/2)
-        y = int(cy - h2/2)
-        x2 = int(cx + w2/2)
-        y2 = int(cy + h2/2)
+        x = int(cx - w2 / 2)
+        y = int(cy - h2 / 2)
+        x2 = int(cx + w2 / 2)
+        y2 = int(cy + h2 / 2)
 
         # Clip to image boundaries
         x, y = max(0, x), max(0, y)
@@ -107,8 +113,8 @@ class FaceDetectAlign:
         y2 = min(img.height, y2)
 
         # Keypoints: typically { 'left_eye': (x, y), 'right_eye': (x, y), ... }
-        left_eye = keypoints.get('left_eye', None)
-        right_eye = keypoints.get('right_eye', None)
+        left_eye = keypoints.get("left_eye", None)
+        right_eye = keypoints.get("right_eye", None)
 
         if not left_eye or not right_eye:
             # If we don't have both eyes, just do a bounding box crop
@@ -127,7 +133,7 @@ class FaceDetectAlign:
         left_eye: Tuple[int, int],
         right_eye: Tuple[int, int],
         face_box: Tuple[int, int, int, int],
-        output_size: Tuple[int, int]
+        output_size: Tuple[int, int],
     ) -> Image.Image:
         """
         1. Computes the angle between the eyes.
@@ -165,9 +171,7 @@ class FaceDetectAlign:
 
     @staticmethod
     def _rotate_around_point(
-        img: Image.Image,
-        angle: float,
-        center: Tuple[float, float]
+        img: Image.Image, angle: float, center: Tuple[float, float]
     ) -> Image.Image:
         """
         Rotates the entire PIL image by 'angle' degrees around 'center'.
@@ -183,6 +187,7 @@ class FaceDetectAlign:
         # The translate for center is done by specifying the 'center' argument in rotate (Pillow>=8.0).
         return img.rotate(-angle, center=center, expand=True, resample=Image.BILINEAR)
 
+
 # ------------------------------------------------------------------------------------
 # Dataset + DataLoader classes
 # ------------------------------------------------------------------------------------
@@ -196,11 +201,11 @@ class IdentityImageDataset(Dataset):
         self,
         root_dir: str,
         transform: Optional[Callable] = None,
-        min_samples_per_identity: int = 1
+        min_samples_per_identity: int = 1,
     ):
         """
         Args:
-            root_dir (str): Path to the dataset root. 
+            root_dir (str): Path to the dataset root.
                 Each subfolder => a class (identity).
             transform (callable, optional): Transform to apply to each image
                 (e.g., FaceDetectAlign, augmentations, ToTensor, etc.).
@@ -211,13 +216,19 @@ class IdentityImageDataset(Dataset):
         self.min_samples_per_identity = min_samples_per_identity
         # Subfolder name => label_id
         self.class_to_idx = self._find_class_indices(root_dir)
-        self.samples = self._gather_samples(root_dir, self.class_to_idx, min_samples_per_identity)
+        self.samples = self._gather_samples(
+            root_dir, self.class_to_idx, min_samples_per_identity
+        )
 
-        bookkeeping_path = os.path.join(self.root_dir, f"bookkeeping_{min_samples_per_identity}.pkl")
+        bookkeeping_path = os.path.join(
+            self.root_dir, f"bookkeeping_{min_samples_per_identity}.pkl"
+        )
         if os.path.exists(bookkeeping_path):
             print(f"Bookkeeping file found at {bookkeeping_path}")
         else:
-            print(f"Bookkeeping file not found at {bookkeeping_path}. Will be generated and cached")
+            print(
+                f"Bookkeeping file not found at {bookkeeping_path}. Will be generated and cached"
+            )
 
         self._bookkeeping_path = bookkeeping_path
 
@@ -233,22 +244,21 @@ class IdentityImageDataset(Dataset):
 
         if self.transform:
             image = self.transform(image)
-        
+
         return image, label
 
     @staticmethod
     def _find_class_indices(root_dir: str) -> dict:
         class_names = sorted(
-            folder for folder in os.listdir(root_dir)
+            folder
+            for folder in os.listdir(root_dir)
             if os.path.isdir(os.path.join(root_dir, folder))
         )
         return {cls_name: i for i, cls_name in enumerate(class_names)}
 
     @staticmethod
     def _gather_samples(
-        root_dir: str,
-        class_to_idx: dict,
-        min_samples_per_identity: int
+        root_dir: str, class_to_idx: dict, min_samples_per_identity: int
     ) -> List[Tuple[str, int]]:
         """
         Gather all samples (image paths, class indices), but only keep identities
@@ -265,7 +275,9 @@ class IdentityImageDataset(Dataset):
             image_paths = []
             for filename in os.listdir(class_folder):
                 file_path = os.path.join(class_folder, filename)
-                if os.path.isfile(file_path) and IdentityImageDataset._is_image_file(filename):
+                if os.path.isfile(file_path) and IdentityImageDataset._is_image_file(
+                    filename
+                ):
                     image_paths.append(file_path)
 
             if len(image_paths) >= min_samples_per_identity:
@@ -293,6 +305,7 @@ class IdentityImageDataset(Dataset):
             print("No identities found in the given directory.")
 
         return all_samples
+
     @staticmethod
     def _is_image_file(filename: str) -> bool:
         extensions = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff")
@@ -305,7 +318,7 @@ def get_identity_data_loader(
     batch_size: int = 32,
     shuffle: bool = True,
     num_workers: int = 4,
-    pin_memory: bool = True
+    pin_memory: bool = True,
 ) -> DataLoader:
     """
     Create a DataLoader for an identity-based dataset:
@@ -323,7 +336,13 @@ def get_identity_data_loader(
         DataLoader
     """
     dataset = IdentityImageDataset(root_dir, transform=transform)
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=pin_memory)
+    loader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+    )
     return loader
 
 
@@ -336,14 +355,11 @@ if __name__ == "__main__":
     face_detect_align = FaceDetectAlign(
         detector=None,  # Let it auto-create MTCNN if installed
         output_size=(112, 112),
-        box_enlarge=1.3  # Enlarge bounding box slightly
+        box_enlarge=1.5,  # Enlarge bounding box slightly
     )
 
     # Compose with other transforms, e.g. ToTensor
-    transform_pipeline = transforms.Compose([
-        face_detect_align,
-        transforms.ToTensor()
-    ])
+    transform_pipeline = transforms.Compose([face_detect_align, transforms.ToTensor()])
 
     # Create a data loader
     loader = get_identity_data_loader(
@@ -351,12 +367,12 @@ if __name__ == "__main__":
         transform=transform_pipeline,
         batch_size=32,
         shuffle=True,
-        num_workers=4
+        num_workers=4,
     )
 
     for images, labels in loader:
         num_to_show = min(4, len(images))
-        
+
         plt.figure(figsize=(12, 3))
         for i in range(num_to_show):
             plt.subplot(1, num_to_show, i + 1)
@@ -364,5 +380,5 @@ if __name__ == "__main__":
             plt.imshow(img_np)
             plt.title(f"Label: {labels[i].item()}")
             plt.axis("off")
-        plt.savefig('face_identity_dataset.png')
+        plt.savefig("face_identity_dataset.png")
         break

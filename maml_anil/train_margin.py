@@ -3,7 +3,7 @@ import os
 import sys
 import time
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import torch
 import torch.nn as nn
@@ -11,13 +11,18 @@ import torch.nn as nn
 import numpy as np
 import random
 import learn2learn as l2l
-from learn2learn.data.transforms import FusedNWaysKShots, LoadData, RemapLabels, ConsecutiveLabels
+from learn2learn.data.transforms import (
+    FusedNWaysKShots,
+    LoadData,
+    RemapLabels,
+    ConsecutiveLabels,
+)
 from dataset.face_identity_dataset import FaceDetectAlign
 from torchvision import transforms
 
 from dataset import root_datasets
 from models import get_model, NormalizedLinearHeadWithCombinedMargin
-from utils import time_load_dataset, time_load_meta_dataset, time_load_folded_dataset
+from utils.utils import time_load_dataset, time_load_meta_dataset, time_load_folded_dataset
 
 from losses.losses import CombinedMarginLoss
 from maml_anil.config import parse_args
@@ -27,18 +32,17 @@ import wandb
 face_detect_align = FaceDetectAlign(
     detector=None,  # Let it auto-create MTCNN if installed
     output_size=(112, 112),
-    box_enlarge=1.3  # Enlarge bounding box slightly
+    box_enlarge=1.5,  # Enlarge bounding box slightly
 )
 
 # Compose with other transforms, e.g. ToTensor
-transform_pipeline = transforms.Compose([
-    face_detect_align,
-    transforms.ToTensor()
-])
+transform_pipeline = transforms.Compose([face_detect_align, transforms.ToTensor()])
+
 
 def accuracy(predictions, targets):
     predictions = predictions.argmax(dim=1).view(targets.shape)
     return (predictions == targets).sum().float() / targets.size(0)
+
 
 def fast_adapt(
     batch,
@@ -98,6 +102,7 @@ def fast_adapt(
 
     return valid_error, valid_accuracy
 
+
 def main(
     ways=5,
     shots=5,
@@ -113,10 +118,10 @@ def main(
     number_valid_tasks=-1,
     number_test_tasks=-1,
     patience=10,
-    save_path='checkpoint/checkpoint.pth',
+    save_path="checkpoint/checkpoint.pth",
     debug_mode=False,
     use_wandb=False,
-    network='edgeface_xs_gamma_06',
+    network="edgeface_xs_gamma_06",
     embedding_size=512,
     loss_s=64.0,
     loss_m1=1.0,
@@ -124,7 +129,7 @@ def main(
     loss_m3=0.4,
     interclass_filtering_threshold=0.0,
     resume_from_checkpoint=False,
-    run_str='run_without_script',
+    run_str="run_without_script",
 ):
     # 1) Create a session string from the current date/time
     session_time = time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -135,35 +140,35 @@ def main(
     # 3) Configure logging (including our session info in the format)
     logging.basicConfig(
         filename=log_filename,
-        filemode='a',
+        filemode="a",
         level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )  
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
 
     logging.info("Starting training script - Margin")
 
     config = {
-                "meta_learning_rate": meta_learning_rate,
-                "fast_learning_rate": fast_learning_rate,
-                "adaptation_steps": adaptation_steps,
-                "meta_batch_size": meta_batch_size,
-                "max_batch_size": max_batch_size,
-                "iterations": iterations,
-                "number_train_tasks": number_train_tasks,
-                "number_valid_tasks": number_valid_tasks,
-                "number_test_tasks": number_test_tasks,
-                "patience": patience,
-                "debug_mode": debug_mode,
-                "network": network,
-                "embedding_size": embedding_size,
-                "loss_s": loss_s,
-                "loss_m1": loss_m1,
-                "loss_m2": loss_m2,
-                "loss_m3": loss_m3,
-                "interclass_filtering_threshold": interclass_filtering_threshold,
-                "resume_from_checkpoint": resume_from_checkpoint
+        "meta_learning_rate": meta_learning_rate,
+        "fast_learning_rate": fast_learning_rate,
+        "adaptation_steps": adaptation_steps,
+        "meta_batch_size": meta_batch_size,
+        "max_batch_size": max_batch_size,
+        "iterations": iterations,
+        "number_train_tasks": number_train_tasks,
+        "number_valid_tasks": number_valid_tasks,
+        "number_test_tasks": number_test_tasks,
+        "patience": patience,
+        "debug_mode": debug_mode,
+        "network": network,
+        "embedding_size": embedding_size,
+        "loss_s": loss_s,
+        "loss_m1": loss_m1,
+        "loss_m2": loss_m2,
+        "loss_m3": loss_m3,
+        "interclass_filtering_threshold": interclass_filtering_threshold,
+        "resume_from_checkpoint": resume_from_checkpoint,
     }
-    logging.info(f"Configuration: {config}")   
+    logging.info(f"Configuration: {config}")
     if use_wandb:
         wandb.init(
             project="edgeface-maml-anil",
@@ -175,109 +180,93 @@ def main(
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    
+
     if use_cuda and torch.cuda.is_available():
-        device = torch.device('cuda')
+        device = torch.device("cuda")
         logging.info(f"Using CUDA device: {torch.cuda.get_device_name()}")
     else:
-        device = torch.device('cpu')
+        device = torch.device("cpu")
         logging.info("Using CPU device")
-
 
     # Load datasets
     casiawebface_dataset = time_load_dataset(
         root_datasets.CASIA_WEB_FACE_ROOT,
         transform_pipeline,
         2 * shots,
-        logging=logging
+        logging=logging,
     )
     age30_dataset = time_load_dataset(
-        root_datasets.AGEDB_30_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
+        root_datasets.AGEDB_30_ROOT, transform_pipeline, 2 * shots, logging=logging
     )
     bupt_dataset = time_load_dataset(
-        root_datasets.BUPT_CBFACE_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
+        root_datasets.BUPT_CBFACE_ROOT, transform_pipeline, 2 * shots, logging=logging
     )
     ca_lfw_dataset = time_load_dataset(
-        root_datasets.CA_LFW_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
-    ) 
+        root_datasets.CA_LFW_ROOT, transform_pipeline, 2 * shots, logging=logging
+    )
     # cfp_fp_dataset = time_load_dataset(
     #     root_datasets.CFP_FP_ROOT,
     #     transform_pipeline,
     #     2 * shots,
-    #     logging=logging 
+    #     logging=logging
     # ) # CURRENTLY BROKEN DUE TO FILESTRUCTURE HAVING TWO FOLDERS - FIX IT
     cp_lfw_dataset = time_load_dataset(
-        root_datasets.CP_LFW_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
-    ) 
+        root_datasets.CP_LFW_ROOT, transform_pipeline, 2 * shots, logging=logging
+    )
     ijbb_dataset = time_load_dataset(
-        root_datasets.IJBB_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
-    ) 
+        root_datasets.IJBB_ROOT, transform_pipeline, 2 * shots, logging=logging
+    )
     ijbc_dataset = time_load_dataset(
-        root_datasets.IJBC_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
+        root_datasets.IJBC_ROOT, transform_pipeline, 2 * shots, logging=logging
     )
     lfw_dataset = time_load_dataset(
-        root_datasets.LFW_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
-    ) 
+        root_datasets.LFW_ROOT, transform_pipeline, 2 * shots, logging=logging
+    )
     ms1mv2_datasets = time_load_folded_dataset(
-        root_datasets.MS1MV2_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
+        root_datasets.MS1MV2_ROOT, transform_pipeline, 2 * shots, logging=logging
     )
     umdfaces_dataset = time_load_dataset(
-        root_datasets.UMDFACES_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
+        root_datasets.UMDFACES_ROOT, transform_pipeline, 2 * shots, logging=logging
     )
     glint360_datasets = time_load_folded_dataset(
-        root_datasets.GLINT360K_ROOT,
-        transform_pipeline,
-        2 * shots,
-        logging=logging
+        root_datasets.GLINT360K_ROOT, transform_pipeline, 2 * shots, logging=logging
     )
 
     # Load meta-datasets
-    casiawebface_metadataset = time_load_meta_dataset(casiawebface_dataset, logging=logging)
+    casiawebface_metadataset = time_load_meta_dataset(
+        casiawebface_dataset, logging=logging
+    )
     age30_metadataset = time_load_meta_dataset(age30_dataset, logging=logging)
     bupt_metadataset = time_load_meta_dataset(bupt_dataset, logging=logging)
     ca_lfw_metadataset = time_load_meta_dataset(ca_lfw_dataset, logging=logging)
-    #cfp_fp_metadataset = time_load_meta_dataset(cfp_fp_dataset, logging=logging)  # CURRENTLY BROKEN DUE TO FILESTRUCTURE HAVING TWO FOLDERS - FIX IT
+    # cfp_fp_metadataset = time_load_meta_dataset(cfp_fp_dataset, logging=logging)  # CURRENTLY BROKEN DUE TO FILESTRUCTURE HAVING TWO FOLDERS - FIX IT
     cp_lfw_metadataset = time_load_meta_dataset(cp_lfw_dataset, logging=logging)
     ijbb_metadataset = time_load_meta_dataset(ijbb_dataset, logging=logging)
     ijbc_metadataset = time_load_meta_dataset(ijbc_dataset, logging=logging)
     lfw_metadataset = time_load_meta_dataset(lfw_dataset, logging=logging)
-    ms1mv2_metadatasets = [time_load_meta_dataset(ms1mv2_dataset, logging=logging) for ms1mv2_dataset in ms1mv2_datasets]
+    ms1mv2_metadatasets = [
+        time_load_meta_dataset(ms1mv2_dataset, logging=logging)
+        for ms1mv2_dataset in ms1mv2_datasets
+    ]
     umdfaces_metadataset = time_load_meta_dataset(umdfaces_dataset, logging=logging)
-    glint360_metadatasets = [time_load_meta_dataset(glint360_dataset, logging=logging) for glint360_dataset in glint360_datasets]
+    glint360_metadatasets = [
+        time_load_meta_dataset(glint360_dataset, logging=logging)
+        for glint360_dataset in glint360_datasets
+    ]
 
     # Create list of datasets to be used
     train_datasets = [casiawebface_metadataset, bupt_metadataset, umdfaces_metadataset]
     train_datasets.extend(ms1mv2_metadatasets)
     train_datasets.extend(glint360_metadatasets)
-    valid_datasets = [age30_metadataset, ca_lfw_metadataset, cp_lfw_metadataset, ijbb_metadataset, ijbc_metadataset, lfw_metadataset] # Missing CFP-FP due to broken dataset
-    
+    valid_datasets = [
+        age30_metadataset,
+        ca_lfw_metadataset,
+        cp_lfw_metadataset,
+        ijbb_metadataset,
+        ijbc_metadataset,
+        lfw_metadataset,
+    ]  # Missing CFP-FP due to broken dataset
+
     train_tasksets = []
     train_tasksets_identity_size = []
     for dataset in train_datasets:
@@ -297,7 +286,7 @@ def main(
         train_tasksets.append(train_taskset)
 
         logging.info(f"Loaded training taskset for {dataset}")
-    
+
     valid_tasksets = []
     valid_tasksets_identity_size = []
     for dataset in valid_datasets:
@@ -319,16 +308,17 @@ def main(
 
         logging.info(f"Loaded validation taskset for {dataset}")
 
-    prob_train = [identity_size / sum(train_tasksets_identity_size) for identity_size in train_tasksets_identity_size]
-    prob_valid = [identity_size / sum(valid_tasksets_identity_size) for identity_size in valid_tasksets_identity_size]
-
+    prob_train = [
+        identity_size / sum(train_tasksets_identity_size)
+        for identity_size in train_tasksets_identity_size
+    ]
+    prob_valid = [
+        identity_size / sum(valid_tasksets_identity_size)
+        for identity_size in valid_tasksets_identity_size
+    ]
 
     margin_loss = CombinedMarginLoss(
-        loss_s,
-        loss_m1,
-        loss_m2,
-        loss_m3,
-        interclass_filtering_threshold
+        loss_s, loss_m1, loss_m2, loss_m3, interclass_filtering_threshold
     )
 
     feature_extractor = get_model(
@@ -344,16 +334,14 @@ def main(
     # )
     # Also doesn't seem to work
     head = NormalizedLinearHeadWithCombinedMargin(
-        embedding_size=embedding_size,
-        num_classes=ways,
-        margin_loss=margin_loss
+        embedding_size=embedding_size, num_classes=ways, margin_loss=margin_loss
     )
 
     # Create simple linear head
     # head = nn.Linear(embedding_size, ways, bias=True)
     # torch.nn.init.xavier_uniform_(head.weight.data, gain=1.0)
     # torch.nn.init.constant_(head.bias.data, 0.0)
-    
+
     feature_extractor.to(device)
     head = l2l.algorithms.MAML(head, lr=fast_learning_rate)
     head.to(device)
@@ -363,22 +351,22 @@ def main(
     logging.info(f"Total number of parameters: {num_params / 1e6:.2f}M")
 
     optimizer = torch.optim.Adam(all_parameters, lr=meta_learning_rate)
-    loss_fn = nn.CrossEntropyLoss(reduction='mean')
+    loss_fn = nn.CrossEntropyLoss(reduction="mean")
 
     # Make sure save directory exists
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
 
     if resume_from_checkpoint:
         checkpoint = torch.load(save_path)
-        resume_epoch = checkpoint['epoch']
-        feature_extractor.load_state_dict(checkpoint['feature_extractor'])
-        head.load_state_dict(checkpoint['head'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        resume_epoch = checkpoint["epoch"]
+        feature_extractor.load_state_dict(checkpoint["feature_extractor"])
+        head.load_state_dict(checkpoint["head"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
         logging.info(f"Resuming training from epoch {resume_epoch}")
     else:
         resume_epoch = 0
 
-    best_meta_val_error = float('inf')
+    best_meta_val_error = float("inf")
     patience_counter = 0
 
     iteration = resume_epoch
@@ -397,11 +385,19 @@ def main(
         for _ in range(meta_batch_size):
             # Meta-training
             learner = head.clone()
-            # Sample from one of the training tasksets 
+            # Sample from one of the training tasksets
             train_tasks = random.choices(train_tasksets, weights=prob_train, k=1)[0]
             batch = train_tasks.sample()
             evaluation_error, evaluation_accuracy = fast_adapt(
-                batch, learner, feature_extractor, loss_fn, adaptation_steps, shots, ways, device, max_batch_size
+                batch,
+                learner,
+                feature_extractor,
+                loss_fn,
+                adaptation_steps,
+                shots,
+                ways,
+                device,
+                max_batch_size,
             )
             evaluation_error.backward()
             meta_train_error += evaluation_error.item()
@@ -459,13 +455,15 @@ def main(
         logging.info(f"Meta Val Accuracy: {meta_valid_accuracy:.4f}")
 
         if use_wandb:
-            wandb.log({
-                "meta_train_error": avg_train_error,
-                "meta_train_accuracy": avg_train_accuracy,
-                # You can also log validation metrics
-                "meta_val_error": meta_valid_error,
-                "meta_val_accuracy": meta_valid_accuracy,
-            })
+            wandb.log(
+                {
+                    "meta_train_error": avg_train_error,
+                    "meta_train_accuracy": avg_train_accuracy,
+                    # You can also log validation metrics
+                    "meta_val_error": meta_valid_error,
+                    "meta_val_accuracy": meta_valid_accuracy,
+                }
+            )
 
         # Early stopping logic
         if meta_valid_error < best_meta_val_error:
@@ -478,21 +476,26 @@ def main(
             patience_counter = 0
 
             checkpoint = {
-                'epoch': iteration,
-                'feature_extractor': feature_extractor.state_dict(),
-                'head': head.state_dict(),
-                'optimizer': optimizer.state_dict(),
+                "epoch": iteration,
+                "feature_extractor": feature_extractor.state_dict(),
+                "head": head.state_dict(),
+                "optimizer": optimizer.state_dict(),
             }
             torch.save(checkpoint, save_path)
 
         else:
             patience_counter += 1
-            logging.info(f"No improvement in meta-test loss. Patience: {patience_counter}")
+            logging.info(
+                f"No improvement in meta-test loss. Patience: {patience_counter}"
+            )
             if patience_counter >= patience:
-                logging.info(f"Early stopping triggered. No improvement for {patience} iterations.")
+                logging.info(
+                    f"Early stopping triggered. No improvement for {patience} iterations."
+                )
                 break
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     options = parse_args()
     main(
         ways=options.ways,
@@ -518,5 +521,5 @@ if __name__ == '__main__':
         loss_m2=options.loss_m2,
         loss_m3=options.loss_m3,
         resume_from_checkpoint=options.resume_from_checkpoint,
-        run_str=options.run_str
+        run_str=options.run_str,
     )

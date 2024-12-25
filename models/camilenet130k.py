@@ -3,13 +3,9 @@ from torch import nn
 from torch.nn import functional as F
 
 def maml_init_(module):
-    if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
-        torch.nn.init.xavier_uniform_(module.weight, gain=1.0)
-        if module.bias is not None:
-            torch.nn.init.constant_(module.bias, 0.0)
-    elif isinstance(module, nn.BatchNorm2d):
-        torch.nn.init.constant_(module.weight, 1.0)
-        torch.nn.init.constant_(module.bias, 0.0)
+    torch.nn.init.xavier_uniform_(module.weight.data, gain=1.0)
+    torch.nn.init.constant_(module.bias.data, 0.0)
+    return module
 
 def conv_block(in_channels, out_channels):
     """
@@ -46,11 +42,7 @@ class MAMLModel(nn.Module):
     def __init__(self, feature_extractor: nn.Module, final_embedding_size=64, output_size=5):
         super(MAMLModel, self).__init__()
         self.features = feature_extractor
-        self.classifier = nn.Sequential(
-            nn.Linear(final_embedding_size, final_embedding_size // 2),
-            nn.ReLU(),
-            nn.Linear(final_embedding_size // 2, output_size)
-        )
+        self.classifier = nn.Linear(final_embedding_size, output_size, bias=True)
 
         maml_init_(self.classifier)
         self.output_size = output_size
@@ -108,16 +100,6 @@ def conv_block(in_channels, out_channels):
         nn.MaxPool2d(2),
     )
 
-def conv_block_no_pool(in_channels, out_channels):
-    """
-    returns a block conv-bn-relu
-    """
-    return nn.Sequential(
-        nn.Conv2d(in_channels, out_channels, 3, padding=1),
-        nn.BatchNorm2d(out_channels),
-        nn.ReLU(),
-    )
-
 
 class ProtoNet(nn.Module):
     """
@@ -134,15 +116,8 @@ class ProtoNet(nn.Module):
         super(ProtoNet, self).__init__()
         self.encoder = nn.Sequential(
             conv_block(x_dim, hid_dim),
-            conv_block_no_pool(hid_dim, hid_dim),
             conv_block(hid_dim, hid_dim),
-            conv_block_no_pool(hid_dim, hid_dim),
             conv_block(hid_dim, hid_dim),
-            conv_block_no_pool(hid_dim, hid_dim),
-            conv_block(hid_dim, hid_dim),
-            conv_block_no_pool(hid_dim, hid_dim),
-            conv_block(hid_dim, hid_dim),
-            conv_block_no_pool(hid_dim, hid_dim),
             conv_block(hid_dim, z_dim),
         )
         self.attention = EdgeQKVAttention(z_dim)
@@ -156,7 +131,7 @@ class ProtoNet(nn.Module):
         return x
 
     def test(self):
-        x = torch.randn(128, 3, 112, 112)
+        x = torch.randn(128, 3, 84, 84)
         print(self.forward(x).shape)
 
     def load(
@@ -172,30 +147,12 @@ class ProtoNet(nn.Module):
         :param path: Path to the file containing the model weights.
         :param map_location: Device to map the model weights to. Default is None.
         """
-        self.load_state_dict(torch.load(path, map_location=map_location))
-
-    @staticmethod
-    def init_all_layers(module):
-        for layer in module.modules():
-            if isinstance(layer, nn.Conv2d) or isinstance(layer, nn.Linear):
-                torch.nn.init.xavier_uniform_(layer.weight, gain=1.0)
-                if layer.bias is not None:
-                    torch.nn.init.constant_(layer.bias, 0.0)
-            elif isinstance(layer, nn.BatchNorm2d):
-                torch.nn.init.constant_(layer.weight, 1.0)
-                torch.nn.init.constant_(layer.bias, 0.0)
-
-
+        print("Loading model from", path)
+        self.load_state_dict(torch.load(path, map_location=map_location, strict=False)) 
+        print("Model loaded from", path)
 
 
 class CamileNet(MAMLModel):
     def __init__(self, input_channels=3, hidden_size=64, embedding_size=64, output_size=5):
         features = ProtoNet(input_channels, hidden_size, embedding_size)
-        ProtoNet.init_all_layers(features)
         super(CamileNet, self).__init__(features, embedding_size, output_size)
-
-
-if __name__ == "__main__":
-    model = ProtoNet()
-    model.test()
-    print("All tests passed!")

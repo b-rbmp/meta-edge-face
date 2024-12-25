@@ -11,4 +11,4 @@
 export WANDB_API_KEY=APIDATAKEY
 
 # Run your Python training script
-python maml_anil/train_simple_linear.py --ways 10 --shots 5 --run_str simple_linear --patience 500 
+python protonets/train_protonet.py --ways 5 --shots 5 --shots_query 5 --run_str train_protonets --patience 500 
