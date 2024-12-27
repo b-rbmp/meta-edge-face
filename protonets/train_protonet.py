@@ -17,22 +17,30 @@ from torchvision import transforms
 from utils.utils import time_load_dataset, time_load_meta_dataset, time_load_folded_dataset
 
 from dataset import root_datasets
-from models import CamileNet, CamileNet130k, get_model
+from models import CamileNet, CamileNet130k, get_model, CamileNetV3
 from config import parse_args
 import wandb
 
+RUN_ID = f"run_{time.strftime('%Y-%m-%d_%H-%M-%S')}"
 
 # Create a face detection + alignment transform
 face_detect_align = FaceDetectAlign(
     detector=None,  # Let it auto-create MTCNN if installed
     output_size=(112, 112),
-    box_enlarge=1.5  # Enlarge bounding box slightly
+    box_enlarge=1.3  # Enlarge bounding box slightly
 )
 
 # Compose with other transforms, e.g. ToTensor
 transform_pipeline = transforms.Compose([
     face_detect_align,
-    transforms.ToTensor()
+    transforms.RandomGrayscale(p=0.2),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.RandomApply(
+        [transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1)],
+        p=0.3
+    ),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 ])
 
 def pairwise_distance_logits(query, support):
@@ -193,7 +201,7 @@ def main(
     number_valid_tasks=-1,
     number_test_tasks=-1,
     patience=10,
-    save_path="checkpoint/checkpoint.pth",
+    save_path=f"checkpoint/{RUN_ID}_checkpoint.pth",
     debug_mode=False,
     use_wandb=False,
     network="camilenet",
@@ -227,6 +235,10 @@ def main(
         "network": network,
         "embedding_size": embedding_size,
         "resume_from_checkpoint": resume_from_checkpoint,
+        "shots": shots,
+        "shots_query": shots_query,
+        "ways": ways,
+        "run_id": RUN_ID,
     }
     logging.info(f"Configuration: {config}")
     if use_wandb:
@@ -396,7 +408,10 @@ def main(
             output_size=ways
         )
         feature_extractor = model.features
-
+    
+    elif network == "camilenet_v3":
+        logging.info("Using CamileNet v3 model")
+        feature_extractor = CamileNetV3(x_dim=3, hid_dim=embedding_size, z_dim=embedding_size)
     elif network == "edgeface_xs_gamma_06":
         logging.info("Using EdgeFace XS model")
         feature_extractor = get_model(

@@ -36,7 +36,7 @@ from collections import defaultdict
 from dataset import root_datasets
 from models import get_model
 from maml_anil.config import parse_args
-from models import CamileNet, CamileNet130k
+from models import CamileNet, CamileNet130k, CamileNetV3
 import sklearn
 from sklearn.model_selection import KFold
 from sklearn.decomposition import PCA
@@ -497,9 +497,13 @@ def main(
     face_detect_align = FaceDetectAlign(
         detector=None,  # Let it auto-create MTCNN if installed
         output_size=(112, 112),
-        box_enlarge=1.5,
+        box_enlarge=1.3,
     )
-    transform_pipeline = transforms.Compose([face_detect_align, transforms.ToTensor()])
+    transform_pipeline = transforms.Compose([
+        face_detect_align,
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+    ])
 
     # Load datasets
 
@@ -535,6 +539,14 @@ def main(
             hidden_size=embedding_size,
             embedding_size=embedding_size,
             output_size=10,  # Doesn't matter, will get only feature extractor
+        )
+        feature_extractor = model.features
+    elif network == "camilenet_v3":
+        logging.info("Using CamileNetV3 model")
+        model = CamileNetV3(
+            x_dim=3,
+            hid_dim=embedding_size,
+            z_dim=embedding_size,
         )
         feature_extractor = model.features
     else:
