@@ -8,7 +8,7 @@
 #SBATCH --time=32:00:00                    # Time limit (24 hours)
 #SBATCH --output=train_simple_linear%j.log               # Standard output and error log (%j is replaced by job ID)
 
-export WANDB_API_KEY=e0dd72c34e57a69822492dd6f055bdb66545d0bb
+export WANDB_API_KEY=APIKEYHERE
 
 # Run your Python training script
-python protonets/train_protonet.py --ways 10 --shots 5 --shots_query 5 --run_str train_protonets --network camilenet --patience 500 --use_wandb
+python protonets/train_protonet.py --ways 2 --shots 1 --shots_query 1 --network camilenet_v3 --run_str train_protonets --patience 1000

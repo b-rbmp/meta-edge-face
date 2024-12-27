@@ -11,4 +11,4 @@
 export WANDB_API_KEY=APIDATAKEY
 
 # Run your Python training script
-python eval/eval_bins.py --checkpoint_str checkpoint/train_protonets_ways_2_shots_5.pth --network camilenet --embedding_size 64 --threshold_start 0.10 --threshold_end 20 --threshold_step 0.01
+python eval/eval_bins.py --checkpoint_str checkpoint/train_protonets_5shot_5way_aug.pth --network camilenet --embedding_size 64 --threshold_start 0.10 --threshold_end 20 --threshold_step 0.01
